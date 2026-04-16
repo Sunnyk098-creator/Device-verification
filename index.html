@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Verification</title>
+    <style>
+        /* Clean Mobile UI Styles */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background: white;
+            padding: 30px 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+        h2 {
+            margin: 0 0 5px 0;
+            color: #1a1a1a;
+            font-size: 24px;
+        }
+        p.subtitle {
+            color: #666;
+            margin: 0 0 25px 0;
+            font-size: 14px;
+        }
+        #statusMessage {
+            font-weight: 600;
+            margin-bottom: 25px;
+            min-height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            line-height: 1.5;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .loading { color: #007bff; }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 10px;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+        button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #b3d7ff;
+            cursor: not-allowed;
+        }
+        #userIdDisplay {
+            font-size: 12px;
+            color: #999;
+            margin-top: 20px;
+        }
+        .telegram-instruction {
+            font-size: 13px;
+            color: #555;
+            margin-top: 10px;
+            font-weight: normal;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Device Verification</h2>
+    <p class="subtitle">Secure Device Check</p>
+    
+    <div id="statusMessage"></div>
+    <button id="verifyBtn" style="display: none;">✅ Verify Device</button>
+    
+    <div id="userIdDisplay"></div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+    // 🔑 FIREBASE CONFIGURATION (EXACT MATCH)
+    const firebaseConfig = {
+        apiKey: "AIzaSyCGUOPsQ4ALJy05iyIuBLbNsu-2gARnDrw",
+        authDomain: "refer-zone-b9e48.firebaseapp.com",
+        databaseURL: "https://refer-zone-b9e48-default-rtdb.firebaseio.com",
+        projectId: "refer-zone-b9e48",
+        storageBucket: "refer-zone-b9e48.firebasestorage.app",
+        messagingSenderId: "1024531611430",
+        appId: "1:1024531611430:web:bf52da491c3932b93e4be7"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // Get UI Elements
+    const statusMsg = document.getElementById('statusMessage');
+    const verifyBtn = document.getElementById('verifyBtn');
+    const userIdDisplay = document.getElementById('userIdDisplay');
+
+    // 👉 Extract userId from URL (?id=...)
+    const urlParams = new URLSearchParams(window.location.search);
+    const userId = urlParams.get('id');
+
+    // ⚠️ Firebase database keys cannot contain periods (.). We must sanitize the IP.
+    function sanitizeIP(ip) {
+        return ip.replace(/\./g, '_').replace(/:/g, '_');
+    }
+
+    // ⚠️ ERROR HANDLING: Invalid Access
+    if (!userId) {
+        statusMsg.innerHTML = "Invalid access ❌<br><span class='telegram-instruction'>Please open this link from the Telegram bot.</span>";
+        statusMsg.className = "error";
+    } else {
+        userIdDisplay.innerText = `User ID: ${userId}`;
+        checkExistingVerification(userId);
+    }
+
+    // 🚫 ANTI-ABUSE: Check if already verified
+    async function checkExistingVerification(id) {
+        statusMsg.innerHTML = "Checking status... ⏳";
+        statusMsg.className = "loading";
+        
+        try {
+            const userRef = ref(db, 'users/' + id);
+            const snapshot = await get(userRef);
+            
+            if (snapshot.exists() && snapshot.val().verified === true) {
+                // User is already verified
+                statusMsg.innerHTML = "You are already verified ✅<br><span class='telegram-instruction'>Go back to Telegram and click 'Check Verification'</span>";
+                statusMsg.className = "success";
+            } else {
+                // New user or previously failed
+                statusMsg.innerHTML = "";
+                verifyBtn.style.display = "block";
+            }
+        } catch (error) {
+            statusMsg.innerHTML = "Database connection error ❌<br><span class='telegram-instruction'>Please try refreshing the page.</span>";
+            statusMsg.className = "error";
+            console.error("Firebase Error: ", error);
+        }
+    }
+
+    // ⏳ VERIFICATION FLOW
+    verifyBtn.addEventListener('click', async () => {
+        // Disable button during process
+        verifyBtn.disabled = true;
+        statusMsg.innerHTML = "Fetching secure connection... ⏳";
+        statusMsg.className = "loading";
+
+        try {
+            // 1. Fetch User's IP Address
+            const ipResponse = await fetch('https://api.ipify.org?format=json');
+            const ipData = await ipResponse.json();
+            const ipAddress = ipData.ip;
+            const safeIp = sanitizeIP(ipAddress);
+
+            // 2. Check if this IP is already blocked in Firebase
+            const failedIpRef = ref(db, 'failed_ips/' + safeIp);
+            const ipSnapshot = await get(failedIpRef);
+
+            if (ipSnapshot.exists()) {
+                // ❌ IP IS ALREADY BLOCKED
+                setTimeout(() => {
+                    statusMsg.innerHTML = "Verification Failed ❌<br><span class='telegram-instruction'>This IP address has already failed verification. Please use a new connection/IP.</span>";
+                    statusMsg.className = "error";
+                    verifyBtn.disabled = false; // Allow click again, but it will just fail again
+                }, 1500);
+                return; // Stop the function here
+            }
+
+            // 3. If IP is new, proceed with 50/50 Verification Logic
+            statusMsg.innerHTML = "Verifying your device... ⏳";
+            
+            // Wait 3 seconds
+            setTimeout(async () => {
+                // 🎲 RANDOM RESULT LOGIC: 50% chance Success / 50% chance Fail
+                const isSuccess = Math.random() >= 0.5;
+
+                if (isSuccess) {
+                    // ✅ SUCCESS CASE
+                    try {
+                        const userRef = ref(db, 'users/' + userId);
+                        await set(userRef, {
+                            verified: true,
+                            device: navigator.userAgent,
+                            ip: ipAddress, // Store IP for reference
+                            timestamp: new Date().toISOString()
+                        });
+                        
+                        statusMsg.innerHTML = "Device Verified Successfully ✅<br><span class='telegram-instruction'>Go back to Telegram and click 'Check Verification'</span>";
+                        statusMsg.className = "success";
+                        verifyBtn.style.display = "none"; // Hide button on success
+                    } catch (error) {
+                        statusMsg.innerHTML = "Failed to save verification data ❌";
+                        statusMsg.className = "error";
+                        verifyBtn.disabled = false;
+                    }
+                } else {
+                    // ❌ FAIL CASE (Store the IP to block future attempts)
+                    try {
+                        await set(failedIpRef, {
+                            failed: true,
+                            userId: userId, // Track which user caused the fail
+                            timestamp: new Date().toISOString()
+                        });
+
+                        statusMsg.innerHTML = "Verification Failed ❌<br><span class='telegram-instruction'>Your IP address has been locked. Try again from a new IP.</span>";
+                        statusMsg.className = "error";
+                        verifyBtn.disabled = false;
+                    } catch (error) {
+                        statusMsg.innerHTML = "Verification Error ❌";
+                        statusMsg.className = "error";
+                        verifyBtn.disabled = false; 
+                    }
+                }
+            }, 3000); // 3000ms = 3 seconds delay
+
+        } catch (error) {
+            statusMsg.innerHTML = "Network error while fetching IP ❌<br><span class='telegram-instruction'>Please check your internet and try again.</span>";
+            statusMsg.className = "error";
+            verifyBtn.disabled = false;
+        }
+    });
+</script>
+
+</body>
+</html>

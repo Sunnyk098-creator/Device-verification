@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Verification</title>
+    <style>
+        /* Modern Dark Theme UI Styles */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0d1117; /* Dark background */
+            color: #c9d1d9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background: #161b22; /* Slightly lighter dark panel */
+            padding: 40px 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid #30363d;
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+        h2 {
+            margin: 0 0 8px 0;
+            color: #ffffff;
+            font-size: 26px;
+            letter-spacing: 0.5px;
+        }
+        p.subtitle {
+            color: #8b949e;
+            margin: 0 0 30px 0;
+            font-size: 15px;
+        }
+        #statusMessage {
+            font-weight: 500;
+            margin-bottom: 20px;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            line-height: 1.6;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        .success-text { color: #3fb950; font-weight: 600; font-size: 18px; margin-top: 15px; }
+        .error-text { color: #f85149; font-weight: 600; font-size: 16px;}
+        .loading-text { color: #58a6ff; }
+        
+        #userIdDisplay {
+            font-size: 13px;
+            color: #484f58;
+            margin-top: 25px;
+            padding-top: 15px;
+            border-top: 1px solid #30363d;
+        }
+        .telegram-instruction {
+            font-size: 14px;
+            color: #8b949e;
+            margin-top: 8px;
+            font-weight: normal;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(88, 166, 255, 0.2);
+            border-left-color: #58a6ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Animated Green Checkmark */
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: block;
+            stroke-width: 4;
+            stroke: #3fb950;
+            stroke-miterlimit: 10;
+            box-shadow: inset 0px 0px 0px #3fb950;
+            animation: fill .4s ease-in-out .4s forwards, scale .3s ease-in-out .9s both;
+            margin: 0 auto 10px auto;
+        }
+        .success-icon__circle {
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            stroke-width: 4;
+            stroke-miterlimit: 10;
+            stroke: #3fb950;
+            fill: none;
+            animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+        }
+        .success-icon__check {
+            transform-origin: 50% 50%;
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.6s forwards;
+        }
+
+        @keyframes stroke { 100% { stroke-dashoffset: 0; } }
+        @keyframes scale { 0%, 100% { transform: none; } 50% { transform: scale3d(1.1, 1.1, 1); } }
+        @keyframes fill { 100% { box-shadow: inset 0px 0px 0px 40px rgba(63, 185, 80, 0.1); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Secure Check</h2>
+    <p class="subtitle">Verifying your connection</p>
+    
+    <div id="statusMessage">
+        </div>
+    
+    <div id="userIdDisplay"></div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+    // 🔑 FIREBASE CONFIGURATION
+    const firebaseConfig = {
+        apiKey: "AIzaSyCGUOPsQ4ALJy05iyIuBLbNsu-2gARnDrw",
+        authDomain: "refer-zone-b9e48.firebaseapp.com",
+        databaseURL: "https://refer-zone-b9e48-default-rtdb.firebaseio.com",
+        projectId: "refer-zone-b9e48",
+        storageBucket: "refer-zone-b9e48.firebasestorage.app",
+        messagingSenderId: "1024531611430",
+        appId: "1:1024531611430:web:bf52da491c3932b93e4be7"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // Get UI Elements
+    const statusMsg = document.getElementById('statusMessage');
+    const userIdDisplay = document.getElementById('userIdDisplay');
+
+    // 👉 Extract userId from URL (?id=...)
+    const urlParams = new URLSearchParams(window.location.search);
+    const userId = urlParams.get('id');
+
+    // ⚠️ Firebase database keys cannot contain periods (.). We must sanitize the IP.
+    function sanitizeIP(ip) {
+        return ip.replace(/\./g, '_').replace(/:/g, '_');
+    }
+
+    // UI Helper Functions
+    function showLoading(text) {
+        statusMsg.innerHTML = `<div class="spinner"></div><span class="loading-text">${text}</span>`;
+    }
+
+    function showSuccessUI(message) {
+        statusMsg.innerHTML = `
+            <svg class="success-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                <circle class="success-icon__circle" cx="26" cy="26" r="25" fill="none"/>
+                <path class="success-icon__check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+            </svg>
+            <div class="success-text">${message}</div>
+        `;
+    }
+
+    function showErrorUI(message) {
+        statusMsg.innerHTML = `<div class="error-text">❌ ${message}</div>`;
+    }
+
+    // ⚠️ ERROR HANDLING: Invalid Access
+    if (!userId) {
+        showErrorUI("Invalid access<br><span class='telegram-instruction'>Please open this link from the Telegram bot.</span>");
+    } else {
+        userIdDisplay.innerText = `User ID: ${userId}`;
+        checkExistingVerification(userId);
+    }
+
+    // 🚫 ANTI-ABUSE: Check if user is already verified
+    async function checkExistingVerification(id) {
+        showLoading("Checking account status...");
+        
+        try {
+            const userRef = ref(db, 'users/' + id);
+            const snapshot = await get(userRef);
+            
+            if (snapshot.exists() && snapshot.val().verified === true) {
+                showSuccessUI("Already Verified!<br><span class='telegram-instruction'>Return to Telegram and click 'Check Verification'</span>");
+            } else {
+                // AUTOMATICALLY START VERIFICATION
+                startAutoVerification();
+            }
+        } catch (error) {
+            showErrorUI("Database connection error<br><span class='telegram-instruction'>Please try refreshing the page.</span>");
+            console.error("Firebase Error: ", error);
+        }
+    }
+
+    // ⏳ AUTOMATIC VERIFICATION FLOW
+    async function startAutoVerification() {
+        showLoading("Fetching secure connection...");
+
+        try {
+            // 1. Fetch User's IP Address
+            const ipResponse = await fetch('https://api.ipify.org?format=json');
+            const ipData = await ipResponse.json();
+            const ipAddress = ipData.ip;
+            const safeIp = sanitizeIP(ipAddress);
+
+            // 2. Check if this IP is already used
+            const usedIpRef = ref(db, 'used_ips/' + safeIp);
+            const ipSnapshot = await get(usedIpRef);
+
+            if (ipSnapshot.exists()) {
+                // ❌ IP IS ALREADY REGISTERED (Used before)
+                setTimeout(() => {
+                    showErrorUI("Verification Failed<br><span class='telegram-instruction'>This IP address has already been used. Please use a new connection/IP.</span>");
+                }, 1500);
+                return; // Stop the function here
+            }
+
+            // 3. Proceed with 70% Success / 30% Fail Logic
+            showLoading("Verifying your device...");
+            
+            setTimeout(async () => {
+                // 🎲 RANDOM RESULT LOGIC: 70% chance Success / 30% chance Fail
+                // Math.random() is between 0 and 1. If it's less than 0.70, it's a success.
+                const isSuccess = Math.random() < 0.70; 
+
+                // 📌 RECORD THE IP IMMEDIATELY
+                try {
+                    await set(usedIpRef, {
+                        status: isSuccess ? "success" : "failed",
+                        userId: userId,
+                        timestamp: new Date().toISOString()
+                    });
+                } catch(e) {
+                    console.error("Failed to log IP", e);
+                }
+
+                if (isSuccess) {
+                    // ✅ SUCCESS CASE
+                    try {
+                        const userRef = ref(db, 'users/' + userId);
+                        await set(userRef, {
+                            verified: true,
+                            device: navigator.userAgent,
+                            ip: ipAddress,
+                            timestamp: new Date().toISOString()
+                        });
+                        
+                        showSuccessUI("Device Verified!<br><span class='telegram-instruction'>Return to Telegram and click 'Check Verification'</span>");
+                    } catch (error) {
+                        showErrorUI("Failed to save verification data");
+                    }
+                } else {
+                    // ❌ FAIL CASE 
+                    showErrorUI("Verification Failed<br><span class='telegram-instruction'>Your IP address has been locked. Try again from a new IP.</span>");
+                }
+            }, 2500); // 2.5 seconds delay to make it look like real processing
+
+        } catch (error) {
+            showErrorUI("Network error while fetching IP<br><span class='telegram-instruction'>Please check your internet and try again.</span>");
+        }
+    }
+</script>
+
+</body>
+</html>

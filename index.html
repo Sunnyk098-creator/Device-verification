@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Verification</title>
+    <style>
+        /* CSS Reset & Roots */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        :root {
+            --bg-dark: #0f101c;
+            --card-bg: #13141f;
+            --text-main: #ffffff;
+            --text-sub: #8a8d9e;
+            --purple-glow: #8E7BFF;
+            --green-arc: #2dd4bf;
+            --blue-btn: #2563eb;
+            --red-fail: #ef4444;
+        }
+
+        body {
+            background: linear-gradient(180deg, #121324 0%, #0a0a14 100%);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Floating Background Bubbles (Bokeh effect) */
+        .bubble {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(142, 123, 255, 0.05);
+            filter: blur(8px);
+            z-index: 0;
+        }
+        .b1 { width: 100px; height: 100px; top: 15%; left: 20%; animation: float 6s infinite alternate; }
+        .b2 { width: 60px; height: 60px; top: 25%; right: 25%; animation: float 4s infinite alternate-reverse; }
+        .b3 { width: 150px; height: 150px; bottom: 10%; left: 30%; animation: float 8s infinite alternate; background: rgba(37, 99, 235, 0.05); }
+        .b4 { width: 40px; height: 40px; bottom: 20%; right: 30%; animation: float 5s infinite alternate-reverse; }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            100% { transform: translateY(-20px); }
+        }
+
+        /* Navbar */
+        .navbar {
+            width: 100%;
+            background: rgba(18, 19, 36, 0.95);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            z-index: 10;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-dp {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .user-details {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-name {
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+
+        .user-id {
+            font-size: 12px;
+            color: var(--text-sub);
+        }
+
+        /* Badges */
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .badge-scanning {
+            background-color: rgba(142, 123, 255, 0.1);
+            color: #b19dfa;
+            border: 1px solid rgba(142, 123, 255, 0.2);
+        }
+
+        .badge-scanning .dot { background-color: #8E7BFF; box-shadow: 0 0 8px #8E7BFF; }
+
+        .badge-active {
+            background-color: rgba(45, 212, 191, 0.1);
+            color: #2dd4bf;
+            border: 1px solid rgba(45, 212, 191, 0.2);
+        }
+
+        .badge-active .dot { background-color: #2dd4bf; box-shadow: 0 0 8px #2dd4bf; }
+
+        .badge-failed {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .badge-failed .dot { background-color: #ef4444; box-shadow: 0 0 8px #ef4444; }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        /* Main Card */
+        .main-container {
+            margin: auto;
+            width: 85%;
+            max-width: 360px;
+            background: var(--card-bg);
+            border-radius: 24px;
+            padding: 40px 25px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+
+        /* Custom Spinner (Arcs) */
+        .spinner-box {
+            width: 110px;
+            height: 110px;
+            position: relative;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .arc {
+            position: absolute;
+            border-radius: 50%;
+            border: 3px solid transparent;
+        }
+
+        .arc-outer {
+            width: 100px;
+            height: 100px;
+            border-top-color: var(--purple-glow);
+            border-right-color: var(--purple-glow);
+            animation: spin 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+        }
+
+        .arc-middle {
+            width: 76px;
+            height: 76px;
+            border-bottom-color: var(--green-arc);
+            border-left-color: var(--green-arc);
+            animation: spin-reverse 2s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+        }
+
+        .arc-inner {
+            width: 52px;
+            height: 52px;
+            border-top-color: var(--purple-glow);
+            animation: spin 1s linear infinite;
+        }
+
+        /* The little dot on the outer arc */
+        .arc-outer::before {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 5px;
+            width: 8px;
+            height: 8px;
+            background: var(--purple-glow);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--purple-glow);
+        }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes spin-reverse { 100% { transform: rotate(-360deg); } }
+
+        /* Shield & Icons */
+        .icon-shield, .icon-error {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .icon-shield {
+            background: rgba(37, 99, 235, 0.1);
+            border: 2px solid rgba(37, 99, 235, 0.3);
+            box-shadow: 0 0 30px rgba(37, 99, 235, 0.2);
+        }
+
+        .icon-error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 2px solid rgba(239, 68, 68, 0.3);
+            box-shadow: 0 0 30px rgba(239, 68, 68, 0.2);
+        }
+
+        .icon-shield svg { width: 45px; height: 45px; color: var(--blue-btn); filter: drop-shadow(0 0 8px var(--blue-btn)); }
+        .icon-error svg { width: 45px; height: 45px; color: var(--red-fail); filter: drop-shadow(0 0 8px var(--red-fail)); }
+
+        /* Text Styles */
+        .main-title {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            transition: color 0.3s;
+        }
+
+        .title-scanning { color: #A78BFA; text-shadow: 0 0 15px rgba(142, 123, 255, 0.4); }
+        .title-success { color: var(--blue-btn); text-shadow: 0 0 15px rgba(37, 99, 235, 0.4); }
+        .title-error { color: var(--red-fail); text-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
+
+        .sub-text {
+            color: var(--text-sub);
+            font-size: 14px;
+            margin-bottom: 30px;
+            text-align: center;
+            line-height: 1.4;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #6d28d9, #a78bfa);
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(167, 139, 250, 0.6);
+            transition: width 0.1s linear;
+        }
+
+        /* Button */
+        .continue-btn {
+            display: none;
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            background: var(--blue-btn);
+            color: white;
+            border: none;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            box-shadow: 0 5px 20px rgba(37, 99, 235, 0.3);
+            transition: background 0.3s, transform 0.2s;
+            text-decoration: none;
+        }
+
+        .continue-btn:active {
+            transform: scale(0.97);
+        }
+
+        .btn-error {
+            background: var(--red-fail);
+            box-shadow: 0 5px 20px rgba(239, 68, 68, 0.3);
+        }
+
+        /* Footer */
+        .footer {
+            position: absolute;
+            bottom: 20px;
+            font-size: 12px;
+            color: #55576b;
+            letter-spacing: 0.5px;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+<div class="bubble b1"></div>
+<div class="bubble b2"></div>
+<div class="bubble b3"></div>
+<div class="bubble b4"></div>
+
+<div class="navbar">
+    <div class="user-info">
+        <img id="userDp" class="user-dp" src="https://ui-avatars.com/api/?name=U&background=13141f&color=fff" alt="DP">
+        <div class="user-details">
+            <div id="userName" class="user-name">Loading...</div>
+            <div id="userIdText" class="user-id">ID: ---</div>
+        </div>
+    </div>
+    <div id="statusBadge" class="status-badge badge-scanning">
+        <span class="status-dot dot"></span> <span id="statusText">SCANNING</span>
+    </div>
+</div>
+
+<div class="main-container">
+    
+    <div class="spinner-box" id="spinnerIcon">
+        <div class="arc arc-outer"></div>
+        <div class="arc arc-middle"></div>
+        <div class="arc arc-inner"></div>
+    </div>
+
+    <div class="icon-shield" id="successIcon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+    </div>
+
+    <div class="icon-error" id="errorIcon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M15 9l-6 6M9 9l6 6"/>
+        </svg>
+    </div>
+
+    <h2 id="mainTitle" class="main-title title-scanning">Device Verification</h2>
+    <p id="subTitle" class="sub-text">Completing authorization...</p>
+    
+    <div class="progress-container" id="progressBox">
+        <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <a href="#" class="continue-btn" id="actionBtn">CONTINUE TO BOT</a>
+
+</div>
+
+<div class="footer">
+    © 2026 Prince | Designed By Prince
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, get, update, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+    // 🔑 FIREBASE CONFIGURATION - Matches the Bot
+    const firebaseConfig = {
+        apiKey: "AIzaSyC6kbLjy-Hr_ZK5b0kMNMaO-e_ZoahiNDY",
+        authDomain: "bot-alpha-77a82.firebaseapp.com",
+        databaseURL: "https://bot-alpha-77a82-default-rtdb.firebaseio.com",
+        projectId: "bot-alpha-77a82",
+        storageBucket: "bot-alpha-77a82.firebasestorage.app",
+        messagingSenderId: "422320067761",
+        appId: "1:422320067761:web:f3eb96a35424bd10693e90"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // Get URL Parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const userId = urlParams.get('id');
+    const paramName = urlParams.get('name') || "Telegram User"; 
+    const paramDp = urlParams.get('dp');
+
+    // ========== DOM Element References ==========
+    const userIdText = document.getElementById('userIdText');
+    const userName = document.getElementById('userName');
+    const userDp = document.getElementById('userDp');
+    
+    const statusBadge = document.getElementById('statusBadge');
+    const statusText = document.getElementById('statusText');
+    
+    const spinnerIcon = document.getElementById('spinnerIcon');
+    const successIcon = document.getElementById('successIcon');
+    const errorIcon = document.getElementById('errorIcon');
+    
+    const mainTitle = document.getElementById('mainTitle');
+    const subTitle = document.getElementById('subTitle');
+    
+    const progressBox = document.getElementById('progressBox');
+    const progressBar = document.getElementById('progressBar');
+    const actionBtn = document.getElementById('actionBtn');
+
+    // Initialize Profile Data
+    if (userId) userIdText.innerText = `ID: ${userId}`;
+    userName.innerText = paramName;
+    if (paramDp) {
+        userDp.src = paramDp;
+    } else {
+        const safeName = encodeURIComponent(paramName);
+        userDp.src = `https://ui-avatars.com/api/?name=${safeName}&background=13141f&color=fff`;
+    }
+
+    // IP Sanitizer
+    function sanitizeIP(ip) { return ip.replace(/\./g, '_').replace(/:/g, '_'); }
+
+    // Progress Animation
+    function animateProgress(duration, callback) {
+        let start = Date.now();
+        let timer = setInterval(() => {
+            let timePassed = Date.now() - start;
+            let progress = Math.min(timePassed / duration, 1);
+            progressBar.style.width = Math.floor(progress * 100) + '%';
+            
+            if (timePassed >= duration) {
+                clearInterval(timer);
+                if(callback) callback();
+            }
+        }, 20);
+    }
+
+    // ========== UI STATE MANAGERS ==========
+    function showSuccess() {
+        statusBadge.className = 'status-badge badge-active';
+        statusText.innerText = 'ACTIVE';
+
+        spinnerIcon.style.display = 'none';
+        progressBox.style.display = 'none';
+        successIcon.style.display = 'flex';
+
+        mainTitle.className = 'main-title title-success';
+        mainTitle.innerText = 'Already Verified';
+        
+        subTitle.innerText = 'This device has already been authorized for use.';
+        
+        actionBtn.style.display = 'block';
+        actionBtn.className = 'continue-btn';
+        actionBtn.innerText = 'CONTINUE TO BOT';
+    }
+
+    function showError(msg) {
+        statusBadge.className = 'status-badge badge-failed';
+        statusText.innerText = 'FAILED';
+
+        spinnerIcon.style.display = 'none';
+        progressBox.style.display = 'none';
+        errorIcon.style.display = 'flex';
+
+        mainTitle.className = 'main-title title-error';
+        mainTitle.innerText = 'Verification Failed';
+        
+        subTitle.innerText = msg;
+        
+        actionBtn.style.display = 'block';
+        actionBtn.className = 'continue-btn btn-error';
+        actionBtn.innerText = 'CLOSE PAGE';
+    }
+
+    // ========== CORE LOGIC ==========
+    if (!userId) {
+        showError("Invalid access. Please open this link from the Telegram bot.");
+    } else {
+        checkVerificationState();
+    }
+
+    async function checkVerificationState() {
+        try {
+            const verificationRef = ref(db, 'verification/' + userId);
+            const snapshot = await get(verificationRef);
+            
+            if (snapshot.exists()) {
+                const status = snapshot.val();
+                progressBar.style.width = '100%';
+                
+                if(status === true || status === "true") {
+                    showSuccess();
+                } else if(status === 'failed') {
+                    showError("Device previously blocked for multi-accounting.");
+                } else {
+                    processNewVerification();
+                }
+            } else {
+                processNewVerification();
+            }
+        } catch (error) {
+            showError("Database connection error. Please try again.");
+        }
+    }
+
+    async function processNewVerification() {
+        try {
+            const ipResponse = await fetch('https://api.ipify.org?format=json');
+            const ipData = await ipResponse.json();
+            const safeIp = sanitizeIP(ipData.ip);
+
+            const usedIpRef = ref(db, 'used_ips/' + safeIp);
+            const ipSnapshot = await get(usedIpRef);
+
+            animateProgress(3000, async () => {
+                if (ipSnapshot.exists()) {
+                    try { await update(ref(db, 'verification'), { [userId]: 'failed' }); } catch(e) {}
+                    showError("This device has already been used on another account.");
+                    return; 
+                }
+
+                // 70% Success Rate
+                const isSuccess = Math.random() < 0.70; 
+
+                try {
+                    await update(ref(db), {
+                        ['used_ips/' + safeIp]: {
+                            status: isSuccess ? "success" : "failed",
+                            userId: userId,
+                            timestamp: new Date().toISOString()
+                        },
+                        ['verification/' + userId]: isSuccess ? true : 'failed'
+                    });
+                } catch(e) {}
+
+                if (isSuccess) {
+                    showSuccess();
+                } else {
+                    showError("Your connection failed the security check.");
+                }
+            });
+
+        } catch (error) {
+            showError("Network error while verifying device.");
+        }
+    }
+</script>
+
+</body>
+</html>
